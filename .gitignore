@@ -1,1 +1,4 @@
 *.svg
+*.pyc
+/Figures
+Figures/*
