@@ -222,3 +222,13 @@ def get_triplicates_jackknife(startTime, offset, level, x, data, conditions, fit
         y_stds.append(std)
 
     return x_vals, y_curves, y_stds
+
+def slc(list, indices):
+    """
+    Select elements from a list based on provided indices.
+    Return the selected elements as a new list.
+    """
+    returnArray = []
+    for i in indices:
+        returnArray += [list[i]]
+    return  returnArray
