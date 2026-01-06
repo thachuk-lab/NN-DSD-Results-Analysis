@@ -117,20 +117,19 @@ def plot_calibrated_averages(level, x, ax, data, conditions, fit, color_dict, fo
     ax.fill_between(x, y_mean - y_std, y_mean + y_std, color=color, alpha=fill_opacity)
     
 def completion_at_time(data,
-                      baseline_data,
-                      triggered_data,
+                      control_data,
                       time_list_seconds,
                       time_in_seconds,
                       conditions,
-                      baseline_conditions,
-                      triggered_conditions,
-                      experimental_level,
+                      control_conditions,
                       base_line_level,
                       triggered_level,
+                      experimental_level,
                       verbose = False):
-  """
-  Calculate the completion level at a specific time point based on baseline and triggered data.
-  """
+  data = data
+  conditions = conditions
+  control_data = control_data
+  control_conditions = control_conditions
 
   def progegate_uncertainty_averaged_stddev(std_dev_list):
     return np.sqrt(sum(s**2 for s in std_dev_list)/(len(std_dev_list)**2))
@@ -138,10 +137,6 @@ def completion_at_time(data,
   def average_last_n_with_std(n, average_series, std_series):
     av = average_series[-n:].mean()
     std = progegate_uncertainty_averaged_stddev(std_series[-n:].values)
-    return av, std
-  def average_first_n_with_std(n, average_series, std_series):
-    av = average_series[:n].mean()
-    std = progegate_uncertainty_averaged_stddev(std_series[:n].values)
     return av, std
   def calculate_completion_level(V, T, B):
     return (float(V) - float(B))/(float(T) - float(B))
@@ -157,9 +152,9 @@ def completion_at_time(data,
   #Fine the index of the first datapoint greater than time in seconds
   desired_time_index = min([i for i, time in enumerate(x) if time >= time_in_seconds])
   #Fist calculate baseline average and uncertainty at LAST AVAILABLE 5 DATAPOINTS
-  base_line_average, base_line_std = average_first_n_with_std(5, *series_av_and_std(baseline_data, baseline_conditions, base_line_level))
+  base_line_average, base_line_std = average_last_n_with_std(5, *series_av_and_std(control_data, control_conditions, base_line_level))
   #Next calculate the triggering average and uncerainty at LAST 5 AVAILABLE DATAPOINTS
-  triggered_average, triggered_std = average_last_n_with_std(5, *series_av_and_std(triggered_data, triggered_conditions, triggered_level))
+  triggered_average, triggered_std = average_last_n_with_std(5, *series_av_and_std(control_data, control_conditions, triggered_level))
   completion_levels = []
   for l_name in conditions[experimental_level]:
     completion_levels += [calculate_completion_level(data[l_name][desired_time_index], triggered_average, base_line_average)]
@@ -167,7 +162,6 @@ def completion_at_time(data,
   if verbose:
     print(f"{experimental_level} : {np.average(completion_levels)} +/- {np.std(completion_levels)}")
   return np.average(completion_levels), np.std(completion_levels)
-
 
 
 def average_and_std(curves):
@@ -232,3 +226,26 @@ def slc(list, indices):
     for i in indices:
         returnArray += [list[i]]
     return  returnArray
+
+def series_av_and_std(dat, cond, level_name):
+    """
+    Calculate the average and standard deviation for the specified level in the conditions dictionary.
+    """
+    target_columns = cond[level_name]
+    dat[target_columns] = dat[target_columns].apply(pd.to_numeric)
+    average_by_point = dat[target_columns].mean(axis=1)
+    std_by_point = dat[target_columns].std(axis=1)
+    return average_by_point, std_by_point
+
+def normalize_av_and_std(av, std, fit):
+    """
+    Normalize average and standard deviation using a linear fit.
+    f = (a - b)/m
+    Using point estimate fit = (b, m)
+    and std of a, e_a
+    df/da = 1/m
+    Therefore, e_f = (1/m)*e_a
+    """
+    new_av = (av - fit[0])/ fit[1]
+    new_std = (std/fit[1])
+    return new_av, new_std

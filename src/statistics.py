@@ -28,6 +28,18 @@ def holm_correction(pvals):
         prev = adj
     return adjusted
 
+def ztest_ratio(ratio, se):
+    """
+    Perform a Z-test for a ratio against the null hypothesis that the ratio is 1.
+    ratio: observed ratio
+    se: standard error of the ratio
+    Returns Z statistic and two-tailed p-value
+    """
+    Z = (ratio - 1.0) / se
+    p = 2 * (1 - norm.cdf(abs(Z)))
+    return Z, p
+
+
 def prop_err_division(res_num, res_denom):
     """
     Calculate propagated error a division of two quantities with

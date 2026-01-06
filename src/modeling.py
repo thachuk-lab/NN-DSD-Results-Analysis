@@ -5,13 +5,13 @@ from scipy.optimize import leastsq
 def model_one_step(kf, tArray, fixed_params):
     """
     One-step model of a strand displacement reaction.
+    Using nM scale internally for better fitting stability.
+    But solver reports kf in 1/(M*s)
     """
     t = tArray
     # Unpack the input parameters
     y0, scale = fixed_params['y0'], fixed_params['scale']
-
-    y0 = [i*1e-9 for i in y0]
-    scale = 1e-9*scale
+    kf = float(kf)*1e-9  # in 1/(nM*s)
 
     def onestep_model(y, t, kf, scale):
         """
@@ -214,6 +214,49 @@ def model_cascade(kf,  tArray, fixed_params):
       y1 = [np.inf for _ in range(len(y1))]
 
     return y1
+
+
+def model_occlusion(kb_off, tArray, fixed_params):
+    """
+    Occlusion model of a strand displacement reaction.
+    Implements:
+    (Y1 + R1 -krep> P + W)
+    (Y1 + B <-kb_off kb_on->  S)
+    Using nM scale internally for better fitting stability.
+    But solver reports kb_off in 1/s
+    """
+    t = tArray
+    # Unpack the input parameters
+    y0, kf, scale = fixed_params['y0'], fixed_params['kf'], fixed_params['scale']
+    y0 = y0[0:1] + [scale] + y0[1:]
+    kb_off = float(kb_off) #Unimolecular off-rate in 1/s
+    kf = float(kf)*1e-9  # in 1/(nM*s)
+    def occlusion_model(y, t, kb_off, kf):
+        kb_off = float(kb_off)
+
+        Y1, R1, P, W, B, S = y
+        # CRN:
+        # Y1 + R1 -krep> P + W
+        # Y1 + B <-kb_off kb_on->  S
+        #Rate of reporting
+        kb_on = 1e7*1e-9 # in 1/(nM*s)
+        dR1dt = -float(kf*(R1)*(Y1)) -float(kb_on*(B)*(R1)) + float(kb_off*S)
+        dY1dt = -float(kf*(R1)*(Y1)) 
+        dPdt = float(kf*(R1)*(Y1))
+        dWdt = dPdt
+        dBdt = -float(kb_on*(B)*(R1)) + float(kb_off*S)
+        dSdt = float(kb_on*(B)*(R1)) - float(kb_off*S)
+
+        return (dY1dt, dR1dt, dPdt, dWdt, dBdt, dSdt)
+
+    #Solve transalot model based on initial conditions and fit
+    y1 = [i[-3] for i in odeint(occlusion_model, y0, t, args=(kb_off, kf), rtol = 1e-12, atol = 1e-12)]
+    if (kb_off < 0):
+      return [np.inf]*len(y1)
+
+    return y1
+
+
 
 def residuals(k, model_func, t, y_list, fixed_params_list):
     """
